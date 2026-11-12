@@ -6175,7 +6175,7 @@ vObjP = position; vONrm = normal; vWNrm = normalize(mat3(modelMatrix) * normal);
       <div class="panel-b about-copy" data-pane="about" hidden>
         <h3>港区 · 小游戏 · 改装版</h3>
         <p>这是一个用单个 HTML 文件做出来的第一人称射击小游戏：雨夜港区里切断三处中继，躲开机械飞鸥与猎犬，然后登船撤离。</p>
-        <p>改装版追加三把武器（各有独立枪模）、猎杀名单模式和第二张地图「船坞 · 清剿」，并修掉了船坞里看不见的空气墙。</p>
+        <p>改装版追加六把武器（各有独立枪模、开局选 2 把）、猎杀名单模式和第二张地图「船坞 · 清剿」，并修掉了船坞里看不见的空气墙。</p>
         <p>可以在标题页输入行动代号，成绩会自动记入排行榜；把游戏放到 Cloudflare Pages 后，同一份文件会使用全球排行榜，直接双击打开时则退回本机榜单。</p>
       </div>      <div class="panel-b" data-pane="settings">
         <div class="row"><label id="l-q">画面质量</label>
@@ -6209,7 +6209,6 @@ errors ${window.__errors.length}${window.__errors.length?`
 </script>
 
 <script>
-/* 港区 · 小游戏 V3 改装版内容扩展（内联） */
 /* ==========================================================================
    港区 · 小游戏  内容扩展包 V2
    - 战术评分 / 连杀倍率 / 最高分
@@ -6259,6 +6258,8 @@ errors ${window.__errors.length}${window.__errors.length?`
       baseSetRelays = null, baseFeed = null;
   let baseMarkers = [];
   let ui = {};
+  let scopeHid = false;
+  let scopeHiddenParts = [];
   let lastFrame = performance.now();
 
   /* ---------------------------------------------------------------- 启动等待 */
@@ -6363,6 +6364,7 @@ errors ${window.__errors.length}${window.__errors.length?`
     buildWeaponUi();
     bindWeaponKeys();
     installWeaponWrap();
+    installTriggerGate();
     refillKits();
     E.onLeaveWorld = () => { try { leaveDockWorld(); } catch (err) { console.error('[dock] 离开失败', err); } };
     applyMarkers();
@@ -6405,6 +6407,44 @@ errors ${window.__errors.length}${window.__errors.length?`
 .jm-kits button:active { transform: translateY(1px); }
 .is-touch .jm-kits { bottom: calc(150px + var(--sab)); right: 12px; }
 .jm-kits button span { display: block; white-space: nowrap; }
+
+/* 出战武器选择 */
+.jm-loadout { margin: 12px 0 0; width: min(560px, 100%); position: relative; z-index: 6; pointer-events: auto; }
+.jm-loadout-h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.jm-loadout-h .k { font: 700 10px/1 var(--f-mono); letter-spacing: .2em; text-transform: uppercase; color: var(--signal); }
+.jm-loadout-h em { font-style: normal; font: 400 10px/1.2 var(--f-mono); letter-spacing: .06em; color: var(--bone-dim); }
+.jm-loadout-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+.jm-lo-card { appearance: none; text-align: left; min-height: 82px; padding: 7px 8px 6px; cursor: pointer;
+  background: rgba(8,10,12,.66); border: 1px solid rgba(255,255,255,.14); color: var(--bone); transition: border-color .12s, background .12s; }
+.jm-lo-card:hover { border-color: rgba(255,255,255,.34); background: rgba(15,19,22,.82); }
+.jm-lo-card.on { border-color: var(--signal); background: rgba(255,179,71,.1); box-shadow: inset 0 0 0 1px rgba(255,179,71,.22); }
+.jm-lo-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.jm-lo-top .tag { font: 700 9px/1 var(--f-mono); letter-spacing: .14em; color: var(--bone-dim); }
+.jm-lo-card.on .tag { color: var(--signal); }
+.jm-lo-top .slot { font: 700 10px/1 var(--f-mono); color: var(--bone-dim); font-style: normal; min-width: 14px; text-align: center; }
+.jm-lo-card.on .slot { color: #0b0e11; background: var(--signal); padding: 3px 3px 2px; }
+.jm-lo-card .name { margin-top: 5px; font: 700 12px/1.2 var(--f-body, inherit); letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jm-lo-card .desc { margin-top: 3px; font: 400 10px/1.3 var(--f-mono); color: rgba(232,228,218,.5); }
+.jm-lo-card .stat { margin-top: 5px; font: 600 9px/1.2 var(--f-mono); letter-spacing: .02em; color: rgba(232,228,218,.72); }
+.jm-lo-card .note { margin-top: 2px; font: 400 9px/1.2 var(--f-mono); color: rgba(255,179,71,.68); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jm-loadout-note { margin-top: 6px; font: 400 10px/1.4 var(--f-mono); letter-spacing: .03em; color: var(--bone-dim); }
+@media (max-width: 680px) { .jm-loadout-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .jm-lo-card .desc { display: none; } }
+
+/* 瞄准镜 */
+.jm-scope { position: fixed; inset: 0; z-index: 139; pointer-events: none; opacity: 0; display: none; transition: opacity .1s linear; }
+.jm-scope.on { display: block; }
+.jm-scope-mask { position: absolute; inset: -2px; background: radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 0, rgba(0,0,0,0) 31.2vmin, rgba(0,0,0,.42) 32.4vmin, rgba(0,0,0,.9) 33.2vmin, #000 40vmin); }
+.jm-scope-ring { position: absolute; left: 50%; top: 50%; width: 64vmin; height: 64vmin; transform: translate(-50%,-50%); border-radius: 50%;
+  border: 2px solid rgba(0,0,0,.92); box-shadow: inset 0 0 0 2px rgba(190,210,200,.1), inset 0 0 42px rgba(0,0,0,.72), 0 0 0 1px rgba(255,255,255,.06); }
+.jm-scope-lens { position: absolute; left: 50%; top: 50%; width: 63vmin; height: 63vmin; transform: translate(-50%,-50%); border-radius: 50%;
+  background: radial-gradient(circle at 38% 30%, rgba(150,200,205,.08), rgba(20,50,60,.05) 45%, rgba(0,0,0,.16) 100%); }
+.jm-scope-reticle { position: absolute; left: 50%; top: 50%; width: 63vmin; height: 63vmin; transform: translate(-50%,-50%); color: rgba(205,228,216,.82); }
+.jm-scope-reticle svg { width: 100%; height: 100%; display: block; }
+.jm-scope-info { position: absolute; left: 50%; bottom: calc(50% - 24vmin); transform: translateX(-50%); display: flex; align-items: center; gap: 12px;
+  font: 600 9px/1 var(--f-mono); letter-spacing: .18em; color: rgba(205,228,216,.62); text-shadow: 0 1px 2px #000; }
+.jm-scope-info b { font: 700 11px/1 var(--f-mono); color: var(--signal); letter-spacing: .08em; }
+.jm-scope-info em { font-style: normal; color: rgba(205,228,216,.42); }
+body.jm-scoping #ui > .hud, body.jm-scoping #ui > .comms, body.jm-scoping #ui > .jm-kits { opacity: 0 !important; }
 `;
     document.head.appendChild(style);
   }
@@ -6449,7 +6489,7 @@ errors ${window.__errors.length}${window.__errors.length?`
         premise.parentNode.insertBefore(ver, premise.nextSibling);
       }
       const note = el('p', 'm-note jm-note',
-        'V3 扩展：战术评分与连杀 · 战术补给点 · 精英与首领 · 三份情报芯片 · 三把武器（1/2/3 切换）· 猎杀名单 · 第二张地图「船坞 · 清剿」· 裂潮无尽 · 改装版。');
+        'V4 扩展：战术评分与连杀 · 战术补给点 · 精英与首领 · 三份情报芯片 · 六把武器（开局选 2 把，1/2 切换）· 猎杀名单 · 第二张地图「船坞 · 清剿」· 裂潮无尽 · 改装版。');
       const noteAnchor = titleScreen.querySelector('.m-note');
       if (noteAnchor && noteAnchor.parentNode) noteAnchor.parentNode.insertBefore(note, noteAnchor.nextSibling);
       else titleScreen.appendChild(note);
@@ -6502,6 +6542,8 @@ errors ${window.__errors.length}${window.__errors.length?`
       ui.nameInput = inp;
     }
 
+    buildLoadoutUi();
+
     // 结算页补排行榜入口
     const debriefActions = document.querySelector('.m-debrief .m-actions');
     if (debriefActions && !debriefActions.querySelector('.jm-board-open')) {
@@ -6515,7 +6557,7 @@ errors ${window.__errors.length}${window.__errors.length?`
     const controls = document.querySelector('.panel-b[data-pane="controls"]');
     if (controls && !controls.querySelector('.jm-help')) {
       const p = el('p', 'panel-note jm-help',
-        '靠近弹药箱 / 医疗包时按交互键（E / 触屏「交互」）拾取；情报芯片同样需要靠近回收。裂潮模式中中继不可切断，只考验存活。改装版：按 1/2/3 切换突击步枪 / 霰弹枪 / 精确步枪，猎杀名单与「船坞 · 清剿」有独立结算。');
+        '靠近弹药箱 / 医疗包时按交互键（E / 触屏「交互」）拾取；情报芯片同样需要靠近回收。裂潮模式中中继不可切断，只考验存活。改装版：开局先选 2 把武器，战斗中按 1/2 切换；精确步枪与狙击枪右键开镜，机枪射速偏慢。');
       controls.appendChild(p);
     }
 
@@ -6527,7 +6569,113 @@ errors ${window.__errors.length}${window.__errors.length?`
     const toast = el('div', 'jm-toast');
     document.getElementById('ui').appendChild(toast);
     ui.toast = toast;
+    buildScopeUi();
     buildBoardPanel();
+  }
+
+  function buildScopeUi() {
+    if (ui.scope) return;
+    const sc = el('div', 'jm-scope');
+    sc.innerHTML =
+      '<div class="jm-scope-mask"></div>' +
+      '<div class="jm-scope-lens"></div>' +
+      '<div class="jm-scope-ring"></div>' +
+      '<div class="jm-scope-reticle"><svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">' +
+        '<line x1="2" y1="50" x2="44" y2="50" stroke="rgba(205,228,216,.8)" stroke-width=".32"/>' +
+        '<line x1="56" y1="50" x2="98" y2="50" stroke="rgba(205,228,216,.8)" stroke-width=".32"/>' +
+        '<line x1="50" y1="2" x2="50" y2="44" stroke="rgba(205,228,216,.8)" stroke-width=".32"/>' +
+        '<line x1="50" y1="56" x2="50" y2="98" stroke="rgba(205,228,216,.8)" stroke-width=".32"/>' +
+        '<circle cx="50" cy="50" r=".85" fill="rgba(255,176,32,.95)"/>' +
+        '<circle cx="50" cy="50" r="1.5" fill="none" stroke="rgba(205,228,216,.35)" stroke-width=".18"/>' +
+        '<g stroke="rgba(205,228,216,.55)" stroke-width=".18">' +
+          '<line x1="47" y1="42" x2="53" y2="42"/><line x1="47" y1="35" x2="53" y2="35"/><line x1="47" y1="28" x2="53" y2="28"/>' +
+          '<line x1="47" y1="58" x2="53" y2="58"/><line x1="47" y1="65" x2="53" y2="65"/><line x1="47" y1="72" x2="53" y2="72"/><line x1="47" y1="79" x2="53" y2="79"/>' +
+        '</g>' +
+        '<g fill="rgba(205,228,216,.42)">' +
+          '<circle cx="42" cy="50" r=".55"/><circle cx="36" cy="50" r=".55"/><circle cx="30" cy="50" r=".55"/>' +
+          '<circle cx="58" cy="50" r=".55"/><circle cx="64" cy="50" r=".55"/><circle cx="70" cy="50" r=".55"/>' +
+        '</g>' +
+        '<g stroke="rgba(255,176,32,.42)" stroke-width=".22">' +
+          '<line x1="8" y1="46" x2="8" y2="54"/><line x1="14" y1="47" x2="14" y2="53"/><line x1="20" y1="48" x2="20" y2="52"/>' +
+          '<line x1="92" y1="46" x2="92" y2="54"/><line x1="86" y1="47" x2="86" y2="53"/><line x1="80" y1="48" x2="80" y2="52"/>' +
+        '</g>' +
+      '</svg></div>' +
+      '<div class="jm-scope-info"><b data-jm="scope-zoom">4×</b><span data-jm="scope-name">一式精确步枪</span><em>HOLD RMB · ADS</em></div>';
+    document.body.appendChild(sc);
+    ui.scope = sc;
+    ui.scopeZoom = sc.querySelector('[data-jm="scope-zoom"]');
+    ui.scopeName = sc.querySelector('[data-jm="scope-name"]');
+  }
+
+  function kitStat(k) {
+    const dmg = k.pellets > 1 ? k.damage + '×' + k.pellets : String(k.damage);
+    return '伤害 ' + dmg + ' · 弹匣 ' + k.mag + (k.scope ? ' · ' + k.zoom + '镜' : '');
+  }
+
+  function buildLoadoutUi() {
+    const title = document.querySelector('[data-s="title"]');
+    if (!title || title.querySelector('.jm-loadout')) return;
+    const wrap = el('div', 'jm-loadout');
+    const head = el('div', 'jm-loadout-h');
+    head.appendChild(el('span', 'k', '出战装备'));
+    head.appendChild(el('em', '', '选 2 把 · 战斗中按 1 / 2 切换'));
+    const grid = el('div', 'jm-loadout-grid');
+    for (const k of KITS) {
+      const card = el('button', 'jm-lo-card');
+      card.type = 'button';
+      card.dataset.id = k.id;
+      card.innerHTML =
+        '<div class="jm-lo-top"><span class="tag">' + k.tag + '</span><i class="slot">+</i></div>' +
+        '<div class="name">' + k.name + '</div>' +
+        '<div class="desc">' + k.desc + '</div>' +
+        '<div class="stat">' + kitStat(k) + '</div>' +
+        '<div class="note">' + k.note + '</div>';
+      card.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        chooseLoadoutKit(k.id);
+      });
+      grid.appendChild(card);
+    }
+    const note = el('div', 'jm-loadout-note');
+    wrap.appendChild(head);
+    wrap.appendChild(grid);
+    wrap.appendChild(note);
+    const anchor = title.querySelector('.m-actions');
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(wrap, anchor);
+    else title.appendChild(wrap);
+    ui.loadout = wrap;
+    ui.loadoutNote = note;
+    refreshLoadoutUi();
+  }
+
+  function chooseLoadoutKit(id) {
+    if (!KITS.some((k) => k.id === id)) return;
+    if (LOADOUT.includes(id)) return;
+    if (LOADOUT.length >= 2) LOADOUT.shift();
+    LOADOUT.push(id);
+    saveLoadout();
+    rebuildWeaponChips();
+    refreshLoadoutUi();
+    if (G && G.game.state !== 'playing' && (!WK.active || !LOADOUT.includes(WK.active.id))) {
+      applyKit(LOADOUT[0], { silent: true, force: true });
+    }
+  }
+
+  function refreshLoadoutUi() {
+    if (!ui.loadout) return;
+    const cards = ui.loadout.querySelectorAll('.jm-lo-card');
+    for (const card of cards) {
+      const id = card.dataset.id;
+      const idx = LOADOUT.indexOf(id);
+      card.classList.toggle('on', idx >= 0);
+      const slot = card.querySelector('.slot');
+      if (slot) slot.textContent = idx >= 0 ? String(idx + 1) : '+';
+      card.setAttribute('aria-pressed', idx >= 0 ? 'true' : 'false');
+    }
+    if (ui.loadoutNote) {
+      ui.loadoutNote.textContent = '已选 2 / 2 · 再点一把会替换较早的装备 · 精确步枪与狙击枪可右键开镜';
+    }
   }
 
   function addRows(selector, rows) {
@@ -7129,29 +7277,63 @@ errors ${window.__errors.length}${window.__errors.length?`
   }
 
   /* ================================================================
-     武器系统：三套枪械档案 + 三套独立第一人称枪模
+     武器系统：六套枪械档案 + 六套独立第一人称枪模 + 开局双武器选择
      ================================================================ */
   const KITS = [
-    { id: 'rifle',   key: '1', tag: '突击', name: '九式突击步枪', damage: 26, pellets: 1, jitter: 0.000, mag: 30, reserve: 150, note: '标准弹 · 全自动' },
-    { id: 'shotgun', key: '2', tag: '霰弹', name: '七式霰弹枪',   damage: 12, pellets: 7, jitter: 0.026, mag: 7,  reserve: 42,  note: '七发弹丸 · 近距压制' },
-    { id: 'dmr',     key: '3', tag: '精确', name: '一式精确步枪', damage: 92, pellets: 1, jitter: 0.0012, mag: 10, reserve: 60, note: '高伤单发 · 弱点处决' }
+    { id: 'rifle',   tag: '突击', name: '九式突击步枪', damage: 26,  pellets: 1, jitter: 0.000,  mag: 30, reserve: 150, note: '全自动 · 标准弹', desc: '均衡，适合中距离', handZ: 0,     spread: 0.0125, rpm: 720 },
+    { id: 'shotgun', tag: '霰弹', name: '七式霰弹枪',   damage: 20,  pellets: 7, jitter: 0.028,  mag: 7,  reserve: 42,  note: '泵动单发 · 七发弹丸', desc: '贴脸一击，七颗弹丸', handZ: -0.12, spread: 0.016, rpm: 90 },
+    { id: 'dmr',     tag: '精确', name: '一式精确步枪', damage: 150, pellets: 1, jitter: 0.0012, mag: 10, reserve: 60,  note: '单发上膛 · 4 倍镜', desc: '中远距离，弱点处决', handZ: -0.14, spread: 0.004, scope: true, scopeFov: 28, zoom: '4×', rpm: 90 },
+    { id: 'smg',     tag: '冲锋', name: '蜂鸟冲锋枪',   damage: 15,  pellets: 1, jitter: 0.000,  mag: 36, reserve: 180, note: '全自动 · 高射速', desc: '弹匣大，近距压制', handZ: -0.10, spread: 0.010, rpm: 900 },
+    { id: 'lmg',     tag: '机枪', name: '铁砧轻机枪',   damage: 36,  pellets: 1, jitter: 0.000,  mag: 75, reserve: 225, note: '全自动 · 重弹链', desc: '火力持续，射速偏慢', handZ: -0.13, spread: 0.018, rpm: 430 },
+    { id: 'sniper',  tag: '狙击', name: '长钉狙击枪',   damage: 230, pellets: 1, jitter: 0.0008, mag: 5,  reserve: 35,  note: '栓动单发 · 8 倍镜', desc: '一枪一个，拉栓慢', handZ: -0.15, spread: 0.002, scope: true, scopeFov: 18, zoom: '8×', rpm: 70 }
   ];
   const WK = {
     active: null,
     ammo: {},          // id -> {ammo, reserve}
     baseShot: null,
     wrapping: false,
+    triggerGate: null,
     chips: {}
   };
+  // 半自动/栓动要求松开扳机；机枪用射速间隔限制；步枪沿用原版全自动
+  const FIRE_SPEC = {
+    shotgun: { interval: 0.95, semi: true },
+    dmr:     { interval: 0.72, semi: true },
+    sniper:  { interval: 1.15, semi: true },
+    lmg:     { interval: 0.14, semi: false }
+  };
+  const LOADOUT_KEY = 'jimao.loadout.v1';
+  const DEFAULT_LOADOUT = ['rifle', 'shotgun'];
+  let LOADOUT = loadLoadout();
+
+  function loadLoadout() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(LOADOUT_KEY) || 'null');
+      if (Array.isArray(raw)) {
+        const ids = raw.filter((id, i) => KITS.some((k) => k.id === id) && raw.indexOf(id) === i).slice(0, 2);
+        if (ids.length === 2) return ids;
+        for (const id of DEFAULT_LOADOUT) if (!ids.includes(id) && ids.length < 2) ids.push(id);
+        if (ids.length === 2) return ids;
+      }
+    } catch (e) {}
+    return DEFAULT_LOADOUT.slice();
+  }
+
+  function saveLoadout() {
+    try { localStorage.setItem(LOADOUT_KEY, JSON.stringify(LOADOUT)); } catch (e) {}
+  }
 
   function refillKits() {
-    for (const k of KITS) WK.ammo[k.id] = { ammo: k.mag, reserve: k.reserve };
-    if (!WK.active) applyKit(KITS[0].id, { silent: true, force: true });
-    else applyKit(WK.active.id, { silent: true, force: true });
+    for (const id of LOADOUT) {
+      const k = KITS.find((x) => x.id === id);
+      if (k) WK.ammo[k.id] = { ammo: k.mag, reserve: k.reserve };
+    }
+    const keep = WK.active && LOADOUT.includes(WK.active.id) ? WK.active.id : LOADOUT[0];
+    applyKit(keep, { silent: true, force: true });
   }
 
   function currentKit() {
-    return WK.active || KITS[0];
+    return WK.active || KITS.find((k) => k.id === LOADOUT[0]) || KITS[0];
   }
 
   function saveKitAmmo() {
@@ -7164,13 +7346,15 @@ errors ${window.__errors.length}${window.__errors.length?`
 
   function applyKit(id, opts) {
     opts = opts || {};
-    const kit = KITS.find((k) => k.id === id) || KITS[0];
+    const kit = KITS.find((k) => k.id === id) || KITS.find((k) => k.id === LOADOUT[0]) || KITS[0];
+    if (!opts.force && !LOADOUT.includes(kit.id)) return false;
     if (WK.active && WK.active.id !== kit.id && weapon.state === 'reload' && !opts.force) {
       hud.message('换弹中，无法切换武器', 1.4);
       return false;
     }
     if (WK.active && WK.active.id !== kit.id) saveKitAmmo();
     WK.active = kit;
+    if (WK.triggerGate) { WK.triggerGate.lock = false; WK.triggerGate.next = 0; }
     const slot = WK.ammo[kit.id] || (WK.ammo[kit.id] = { ammo: kit.mag, reserve: kit.reserve });
     try {
       weapon.magSize = kit.mag;
@@ -7178,7 +7362,13 @@ errors ${window.__errors.length}${window.__errors.length?`
       weapon.reserve = slot.reserve;
       weapon.damage = kit.damage;
       weapon.name = kit.name;
-      weapon.spread = kit.id === 'shotgun' ? 0.016 : kit.id === 'dmr' ? 0.004 : 0.0125;
+      weapon.spread = kit.spread || 0.0125;
+      weapon.rpm = kit.rpm || 720;
+      // 瞄具倍率：只改玩家相机 ADS 目标 FOV，不改全局世界镜头
+      if (player.tuning) {
+        player.tuning.fovAds = kit.scope ? kit.scopeFov : 52;
+        player.tuning.adsLook = kit.scope ? 0.46 : 0.6;
+      }
     } catch (e) {}
     const nameNode = document.querySelector('.h-wname');
     if (nameNode) nameNode.textContent = kit.name;
@@ -7190,12 +7380,13 @@ errors ${window.__errors.length}${window.__errors.length?`
       toast(kit.tag + ' · ' + kit.name);
       try { sfx('ui_click', { gain: 0.6 }); } catch (e) {}
     }
+    if (scopeHid) restoreWeaponModelAfterScope();
     applyKitModel(kit.id);
     return true;
   }
 
-  /* ---------- 三套独立第一人称枪模 ---------- */
-  const KIT_MODELS = { rifle: null, shotgun: null, dmr: null, baseParts: [], armParts: [], built: false };
+  /* ---------- 六套独立第一人称枪模 ---------- */
+  const KIT_MODELS = { rifle: null, shotgun: null, dmr: null, smg: null, lmg: null, sniper: null, baseParts: [], armParts: [], built: false };
   const KM = {};
   function kmat(key, color, rough, metal, emissive) {
     if (!KM[key]) {
@@ -7244,7 +7435,8 @@ errors ${window.__errors.length}${window.__errors.length?`
     const wood = kmat('wood', 0x6d4a2c, 0.78, 0.08);
     const woodDark = kmat('woodDark', 0x4a3320, 0.82, 0.06);
     const gunmetal = kmat('gunmetal', 0x2b2f33, 0.55, 0.55);
-    const steel = kmat('steel', 0x8a9096, 0.4, 0.75);
+    const steel = kmat('steel', 0x757b80, 0.52, 0.62);
+    const darkSteel = kmat('darkSteel', 0x3a4045, 0.6, 0.5);
     const shell = kmat('shell', 0xc44a35, 0.6, 0.15);
     const brass = kmat('brass', 0xb99a55, 0.45, 0.6);
     const sg = new T.Group();
@@ -7271,6 +7463,7 @@ errors ${window.__errors.length}${window.__errors.length?`
     const tan = kmat('tan', 0x9a855f, 0.7, 0.18);
     const tanDark = kmat('tanDark', 0x77653f, 0.75, 0.2);
     const lens = kmat('lens', 0x1d3b46, 0.2, 0.6, 0x2f8fa8);
+    const rubber = kmat('rubber', 0x151719, 0.92, 0.04);
     const dmr = new T.Group();
     dmr.name = 'jimao-dmr';
     dmr.position.z = -0.14;
@@ -7288,6 +7481,16 @@ errors ${window.__errors.length}${window.__errors.length?`
     const lensMesh = new T.Mesh(new T.CircleGeometry(0.028, 18), lens);
     lensMesh.position.set(0, 0.085, -0.184); lensMesh.rotation.y = Math.PI;
     dmr.add(lensMesh);
+    kcyl(dmr, 0.036, 0.08, 0, 0.085, -0.205, gunmetal);                // 物镜遮光罩
+    kcyl(dmr, 0.032, 0.022, 0, 0.085, -0.155, steel);                  // 物镜环
+    kcyl(dmr, 0.031, 0.022, 0, 0.085, 0.055, steel);                   // 目镜环
+    kcyl(dmr, 0.034, 0.025, 0, 0.085, 0.10, rubber);                   // 目镜眼罩
+    const dmrTurret = new T.Mesh(new T.CylinderGeometry(0.012, 0.012, 0.03, 10), steel);
+    dmrTurret.position.set(0, 0.115, -0.06); dmr.add(dmrTurret);       // 顶部调节塔
+    const dmrSide = new T.Mesh(new T.CylinderGeometry(0.010, 0.010, 0.026, 10), steel);
+    dmrSide.position.set(0.030, 0.085, -0.06); dmrSide.rotation.z = Math.PI / 2; dmr.add(dmrSide);
+    kcyl(dmr, 0.006, 0.18, 0, 0.020, 0.02, steel).rotation.z = 0.55;   // 拉机柄
+    kbox(dmr, 0.010, 0.010, 0.05, 0.075, 0.020, 0.02, steel);          // 拉机柄柄头
     kbox(dmr, 0.022, 0.045, 0.03, 0, 0.055, -0.07, steel);             // 镜座
     kbox(dmr, 0.022, 0.045, 0.03, 0, 0.055, 0.07, steel);              // 镜座
     kbox(dmr, 0.018, 0.020, 0.09, 0, 0.062, -0.02, tanDark);           // 镜桥
@@ -7299,10 +7502,106 @@ errors ${window.__errors.length}${window.__errors.length?`
     }
     root.add(dmr);
 
+    // —— 从原版高模枪身克隆：保留机匣、护木、枪托的原始倒角和细节 ——
+    const cloneBase = (color, sx, sy, sz, px, py, pz) => {
+      const g = new T.Group();
+      root.children.forEach((c) => {
+        if (!c.isMesh || !c.material || c.material.type !== 'MeshStandardMaterial') return;
+        const cl = c.clone();
+        cl.visible = true;
+        cl.traverse((o) => {
+          if (o.isMesh && o.material) {
+            o.material = o.material.clone();
+            if (o.material.color) o.material.color.set(color);
+            o.material.metalness = 0.48;
+            o.material.roughness = 0.5;
+          }
+        });
+        g.add(cl);
+      });
+      g.scale.set(sx, sy, sz);
+      g.position.set(px, py, pz);
+      return g;
+    };
+
+    // —— 冲锋枪：高模短枪身 + 消音器 + 红点镜 + 折叠托细节 ——
+    const polymer = kmat('polymer', 0x24282b, 0.82, 0.12);
+    const polymer2 = kmat('polymer2', 0x3a4042, 0.78, 0.16);
+    const olive = kmat('olive', 0x4d5547, 0.85, 0.1);
+    const accent = kmat('accent', 0xc07a2e, 0.66, 0.2);
+    const smg = cloneBase(0x252b30, 0.96, 0.94, 0.60, 0.0, -0.005, -0.12);
+    smg.name = 'jm-smg';
+    root.add(smg);
+
+    // —— 轻机枪：高模枪身 + 弹箱 + 弹链 + 重枪管 + 两脚架 ——
+    const lmg = cloneBase(0x55603f, 1.12, 1.10, 1.06, 0.0, -0.005, -0.24);
+    lmg.name = 'jm-lmg';
+    kbox(lmg, 0.100, 0.100, 0.160, -0.065, -0.215, 0.040, olive);      // 侧面弹箱
+    kbox(lmg, 0.098, 0.016, 0.155, -0.065, -0.168, 0.040, polymer2);   // 弹箱盖
+    kbox(lmg, 0.014, 0.018, 0.028, -0.115, -0.235, 0.090, brass);      // 弹箱锁扣
+    for (let i = 0; i < 5; i++) kbox(lmg, 0.014, 0.012, 0.036, -0.030, -0.156, -0.020 + i * 0.022, brass);
+    kbox(lmg, 0.070, 0.014, 0.150, -0.065, -0.230, 0.040, accent);     // 弹箱橙色条
+    kcyl(lmg, 0.024, 0.30, 0, 0.018, -0.46, darkSteel);                // 散热套筒
+    kcyl(lmg, 0.012, 0.56, 0, 0.018, -0.68, gunmetal);                 // 重枪管
+    kcyl(lmg, 0.022, 0.075, 0, 0.018, -0.94, darkSteel);               // 制退器
+    kbox(lmg, 0.012, 0.040, 0.022, 0.018, 0.018, -0.98, gunmetal);     // 制退器侧口
+    kbox(lmg, 0.044, 0.012, 0.12, 0, 0.160, 0.04, darkSteel);          // 提把
+    kbox(lmg, 0.010, 0.032, 0.032, 0, 0.132, 0.09, darkSteel);         // 提把立柱
+    kbox(lmg, 0.040, 0.018, 0.11, 0, 0.118, 0.22, polymer2);           // 托腮
+    for (const sx of [-1, 1]) {
+      const leg = new T.Mesh(new T.CylinderGeometry(0.006, 0.006, 0.18, 8), steel);
+      leg.position.set(sx * 0.055, -0.235, -0.36);
+      leg.rotation.z = sx * 0.40; leg.rotation.x = 0.18; lmg.add(leg);
+      const foot = new T.Mesh(new T.CylinderGeometry(0.010, 0.010, 0.016, 8), rubber);
+      foot.position.set(sx * 0.097, -0.322, -0.36); lmg.add(foot);
+    }
+    root.add(lmg);
+
+    // —— 狙击枪：高模枪身 + 加长枪管 + 8 倍大镜 + 托腮 + 两脚架 ——
+    const sniper = cloneBase(0x565442, 0.92, 0.94, 1.16, 0.0, -0.005, -0.25);
+    sniper.name = 'jm-sniper';
+    kbox(sniper, 0.042, 0.022, 0.16, 0, 0.118, 0.24, polymer2);        // 托腮
+    kbox(sniper, 0.018, 0.095, 0.026, 0, -0.005, 0.38, rubber);        // 橡胶托底
+    kbox(sniper, 0.050, 0.050, 0.18, 0, -0.030, 0.12, darkSteel);      // 托底连杆
+    const snScope = new T.Group();
+    snScope.position.set(0, 0.06, 0.02);
+    const scopeMat = kmat('scopeMat', 0x24292d, 0.45, 0.55);
+    const scopeCyl = (rad, len, z, mat) => {
+      const c = new T.Mesh(new T.CylinderGeometry(rad, rad, len, 18), mat);
+      c.rotation.x = Math.PI / 2; c.position.z = z; snScope.add(c);
+    };
+    scopeCyl(0.034, 0.28, 0, scopeMat);                                // 主镜筒
+    scopeCyl(0.046, 0.075, -0.18, gunmetal);                           // 物镜
+    scopeCyl(0.040, 0.070, 0.15, gunmetal);                            // 目镜
+    scopeCyl(0.049, 0.085, -0.225, rubber);                            // 物镜遮光罩
+    scopeCyl(0.032, 0.020, -0.143, steel);                             // 物镜环
+    scopeCyl(0.032, 0.020, 0.113, steel);                              // 目镜环
+    const snLens = new T.Mesh(new T.CircleGeometry(0.041, 20), lens);
+    snLens.position.set(0, 0, -0.272); snLens.rotation.y = Math.PI; snScope.add(snLens);
+    const snTurret = new T.Mesh(new T.CylinderGeometry(0.014, 0.014, 0.034, 10), steel);
+    snTurret.position.set(0, 0.038, -0.02); snScope.add(snTurret);
+    const snSide = new T.Mesh(new T.CylinderGeometry(0.011, 0.011, 0.030, 10), steel);
+    snSide.position.set(0.032, 0, -0.02); snSide.rotation.z = Math.PI / 2; snScope.add(snSide);
+    kbox(snScope, 0.022, 0.048, 0.030, 0, -0.025, -0.10, darkSteel);   // 镜座
+    kbox(snScope, 0.022, 0.048, 0.030, 0, -0.025, 0.04, darkSteel);
+    sniper.add(snScope);
+    const bolt = new T.Mesh(new T.CylinderGeometry(0.007, 0.007, 0.16, 10), steel);
+    bolt.position.set(0.070, 0.014, 0.055); bolt.rotation.z = 1.05; sniper.add(bolt);
+    const boltKnob = new T.Mesh(new T.SphereGeometry(0.014, 12, 10), steel);
+    boltKnob.position.set(0.135, 0.014, 0.055); sniper.add(boltKnob);
+    for (const sx of [-1, 1]) {
+      const leg = new T.Mesh(new T.CylinderGeometry(0.006, 0.006, 0.20, 8), steel);
+      leg.position.set(sx * 0.055, -0.235, -0.42);
+      leg.rotation.z = sx * 0.40; leg.rotation.x = 0.16; sniper.add(leg);
+    }
+    root.add(sniper);
+
     KIT_MODELS.shotgun = sg;
     KIT_MODELS.dmr = dmr;
-    dmr.visible = false;
-    sg.visible = false;
+    KIT_MODELS.smg = smg;
+    KIT_MODELS.lmg = lmg;
+    KIT_MODELS.sniper = sniper;
+    dmr.visible = false; sg.visible = false; smg.visible = false; lmg.visible = false; sniper.visible = false;
     KIT_MODELS.built = true;
   }
 
@@ -7311,49 +7610,131 @@ errors ${window.__errors.length}${window.__errors.length?`
     if (!KIT_MODELS.built) return;
     const rifleMode = id === 'rifle';
     for (const part of KIT_MODELS.baseParts) part.visible = rifleMode;
-    const armShift = id === 'dmr' ? -0.14 : id === 'shotgun' ? -0.12 : 0;
+    const kit = KITS.find((k) => k.id === id) || {};
+    const armShift = kit.handZ == null ? 0 : kit.handZ;
     for (const part of KIT_MODELS.armParts) part.node.position.z = part.z + armShift;
-    if (KIT_MODELS.shotgun) KIT_MODELS.shotgun.visible = id === 'shotgun';
-    if (KIT_MODELS.dmr) KIT_MODELS.dmr.visible = id === 'dmr';
+    for (const key of ['shotgun', 'dmr', 'smg', 'lmg', 'sniper']) {
+      if (KIT_MODELS[key]) KIT_MODELS[key].visible = id === key;
+    }
   }
 
   function buildWeaponUi() {
     const host = document.getElementById('ui');
     if (!host || host.querySelector('.jm-kits')) return;
     const bar = el('div', 'jm-kits');
-    for (const k of KITS) {
-      const b = el('button', '', '<b>' + k.key + '</b><span>' + k.tag + '</span>');
+    host.appendChild(bar);
+    ui.kitsBar = bar;
+    rebuildWeaponChips();
+  }
+
+  function rebuildWeaponChips() {
+    if (!ui.kitsBar) return;
+    ui.kitsBar.innerHTML = '';
+    WK.chips = {};
+    LOADOUT.forEach((id, idx) => {
+      const k = KITS.find((x) => x.id === id);
+      if (!k) return;
+      const b = el('button', '', '<b>' + (idx + 1) + '</b><span>' + k.tag + '</span>');
       b.type = 'button';
       b.title = k.name + ' · ' + k.note;
+      b.dataset.kit = k.id;
       b.addEventListener('click', (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
         if (G.game.state !== 'playing') return;
         applyKit(k.id);
       });
-      bar.appendChild(b);
+      ui.kitsBar.appendChild(b);
       WK.chips[k.id] = b;
-    }
-    host.appendChild(bar);
-    ui.kitsBar = bar;
+    });
+    if (WK.active && WK.chips[WK.active.id]) WK.chips[WK.active.id].classList.add('on');
   }
 
   function bindWeaponKeys() {
     window.addEventListener('keydown', (ev) => {
       if (!G || G.game.state !== 'playing') return;
-      const idx = ['1', '2', '3'].indexOf(ev.key);
+      const idx = ['1', '2'].indexOf(ev.key);
       if (idx < 0) return;
       if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
-      applyKit(KITS[idx].id);
+      const id = LOADOUT[idx];
+      if (id) applyKit(id);
     }, true);
+  }
+
+  function applyActiveKitAmmo() {
+    if (!weapon || !WK.active) return;
+    const slot = WK.ammo[WK.active.id];
+    if (!slot) return;
+    try {
+      weapon.magSize = WK.active.mag;
+      weapon.ammo = slot.ammo;
+      weapon.reserve = slot.reserve;
+    } catch (e) {}
+  }
+
+  function paintAmmoHud() {
+    if (!weapon || !WK.active) return;
+    const box = document.querySelector('.h-ammo');
+    if (!box) return;
+    const n = box.querySelector('.h-ammo-n');
+    const r = box.querySelector('.h-ammo-r');
+    const pips = box.querySelector('.h-pips');
+    const ammo = Math.max(0, Math.min(WK.active.mag, weapon.ammo));
+    const reserve = Math.max(0, weapon.reserve);
+    const ns = String(ammo).padStart(2, '0');
+    const rs = String(reserve).padStart(3, '0');
+    if (n && n.textContent !== ns) n.textContent = ns;
+    if (r && r.textContent !== rs) r.textContent = rs;
+    if (pips) {
+      if (pips.children.length !== WK.active.mag) {
+        pips.innerHTML = '<i></i>'.repeat(WK.active.mag);
+      }
+      [...pips.children].forEach((p, i) => {
+        p.className = i < ammo ? '' : 'off';
+      });
+    }
+  }
+
+  // 原版开局/重开会把弹量写回步枪的 30/150；这里按当前武器档案收口，
+  // 避免霰弹枪在 intro 或刚进游戏时显示 30 发。
+  function enforceActiveKitAmmoBounds() {
+    if (!weapon || !WK.active) return;
+    const kit = WK.active;
+    try {
+      if (weapon.magSize !== kit.mag) weapon.magSize = kit.mag;
+      if (weapon.ammo > kit.mag) {
+        const slot = WK.ammo[kit.id];
+        weapon.ammo = slot ? Math.min(slot.ammo, kit.mag) : kit.mag;
+        if (slot) weapon.reserve = slot.reserve;
+      }
+    } catch (e) {}
+    paintAmmoHud();
   }
 
   function installWeaponWrap() {
     if (WK.wrapping) return;
     WK.wrapping = true;
+    // 原版 game.start 会把武器重置成步枪弹量（30/150）；
+    // 在开局后把当前选中武器的弹匣/备弹恢复回来，避免霰弹枪显示 30 发。
+    const baseStart = G.game.start.bind(G.game);
+    G.game.start = function (...args) {
+      const out = baseStart(...args);
+      applyActiveKitAmmo();
+      return out;
+    };
+    // 原版 HUD 在 intro 阶段可能仍缓存 30/150；每次刷新后再按当前武器档案覆盖一次。
+    if (hud && hud.update && !hud.__jmAmmoWrapped) {
+      hud.__jmAmmoWrapped = 1;
+      const baseHudUpdate = hud.update.bind(hud);
+      hud.update = function (...args) {
+        const out = baseHudUpdate(...args);
+        paintAmmoHud();
+        return out;
+      };
+    }
     WK.baseShot = G.combat.playerShot.bind(G.combat);
     G.combat.playerShot = function (origin, dir, opts) {
-      const kit = WK.active || KITS[0];
+      const kit = WK.active || currentKit() || KITS[0];
       const base = WK.baseShot;
       if (kit.pellets <= 1) {
         const o = Object.assign({}, opts || {}, { damage: kit.damage, range: (opts && opts.range) || 300 });
@@ -7390,6 +7771,53 @@ errors ${window.__errors.length}${window.__errors.length?`
       }
       return best;
     };
+  }
+
+  function installTriggerGate() {
+    if (WK.triggerGate) return;
+    const input = G.input;
+    if (!input || typeof Object.defineProperty !== 'function') return;
+    const gate = { raw: !!input.fire, lock: false, next: 0 };
+    try {
+      Object.defineProperty(input, 'fire', {
+        configurable: true,
+        enumerable: true,
+        get() {
+          const kit = WK.active;
+          const spec = kit && FIRE_SPEC[kit.id];
+          if (!spec) return gate.raw;          // 步枪保持原版全自动
+          if (!gate.raw) return false;
+          if (gate.lock) return false;
+          if (performance.now() < gate.next) {
+            if (spec.semi) gate.lock = true;
+            return false;
+          }
+          return true;
+        },
+        set(v) {
+          const nv = !!v;
+          const was = gate.raw;
+          gate.raw = nv;
+          if (!nv) { gate.lock = false; return; }
+          if (!was) {
+            const kit = WK.active;
+            const spec = kit && FIRE_SPEC[kit.id];
+            // 冷却没结束就提前扣扳机：半自动这一下作废，必须松开再按
+            if (spec && spec.semi && performance.now() < gate.next) gate.lock = true;
+          }
+        }
+      });
+      WK.triggerGate = gate;
+      G.events.on('weapon:fire', () => {
+        const kit = WK.active;
+        const spec = kit && FIRE_SPEC[kit.id];
+        if (!spec) return;
+        if (spec.semi) gate.lock = true;
+        gate.next = performance.now() + spec.interval * 1000;
+      });
+    } catch (err) {
+      console.warn('[expansion] 单发扳机接入失败', err);
+    }
   }
 
   function syncKitAmmo() {
@@ -8375,8 +8803,59 @@ errors ${window.__errors.length}${window.__errors.length?`
     try { update(dt); } catch (err) { if (!loop.err) { loop.err = 1; console.error('[expansion] 更新异常', err); } }
   }
 
+  // 开镜时只隐藏枪模的各个子件，保留 root.visible。
+  // 原版武器开火判定会检查 root.visible，直接隐藏 root 会导致开镜后无法开火。
+  function hideWeaponModelForScope() {
+    if (!weapon || !weapon.root) return;
+    const root = weapon.root;
+    if (!scopeHiddenParts.length) {
+      for (const child of root.children) scopeHiddenParts.push([child, child.visible]);
+    } else {
+      const seen = new Set(scopeHiddenParts.map((p) => p[0]));
+      for (const child of root.children) {
+        if (!seen.has(child)) scopeHiddenParts.push([child, child.visible]);
+      }
+    }
+    // 每帧强制隐藏，防止开火时的枪口焰/抛壳等子件重新冒到镜片上
+    for (const child of root.children) child.visible = false;
+    scopeHid = true;
+  }
+
+  function restoreWeaponModelAfterScope() {
+    if (!scopeHid) return;
+    for (const [child, visible] of scopeHiddenParts) {
+      if (child) child.visible = visible;
+    }
+    scopeHiddenParts = [];
+    scopeHid = false;
+  }
+
+  function updateScope() {
+    if (!ui.scope) return;
+    const playing = G.game.state === 'playing';
+    const kit = WK.active;
+    const ads = weapon && Number.isFinite(weapon.ads) ? weapon.ads : 0;
+    const want = playing && !PROFILE.boardOpen && player.alive && kit && kit.scope && ads > 0.35;
+    if (!want) {
+      ui.scope.classList.remove('on');
+      ui.scope.style.opacity = '0';
+      document.body.classList.remove('jm-scoping');
+      if (scopeHid) restoreWeaponModelAfterScope();
+      return;
+    }
+    const a = Math.min(1, Math.max(0, (ads - 0.35) / 0.45));
+    ui.scope.classList.add('on');
+    ui.scope.style.opacity = String(a.toFixed(3));
+    document.body.classList.add('jm-scoping');
+    if (ui.scopeName) ui.scopeName.textContent = kit.name;
+    if (ui.scopeZoom) ui.scopeZoom.textContent = kit.zoom || '4×';
+    // 镜片一出现就藏枪模，并每帧维持隐藏，避免枪身/倍镜/枪口焰悬在镜片上
+    hideWeaponModelForScope();
+  }
+
   function update(dt) {
     const t = G.time.t;
+    enforceActiveKitAmmoBounds();
     // 拾取物动画
     for (const p of pickups) {
       if (p.kind === 'intel' && !p.taken) {
@@ -8399,6 +8878,7 @@ errors ${window.__errors.length}${window.__errors.length?`
     }
 
     const playing = G.game.state === 'playing';
+    updateScope();
     if (ui.kitsBar) ui.kitsBar.style.display = playing ? 'flex' : 'none';
     if (!playing) {
       E.prompt = null;
@@ -8517,8 +8997,8 @@ errors ${window.__errors.length}${window.__errors.length?`
   /* ---------------------------------------------------------------- 对外钩子 */
   function exposeHooks() {
     window.__JM.hooks = {
-      E, pickups, HUNT, DOCK, KITS, WK, PROFILE,
-      applyMarkers, refreshScoreUi, refillKits, applyKit,
+      E, pickups, HUNT, DOCK, KITS, WK, PROFILE, LOADOUT,
+      applyMarkers, refreshScoreUi, refillKits, applyKit, chooseLoadoutKit,
       createPickup, walkPoint, farEnemyPoint, spawnRank, spawnWave,
       startHunt, startDock, restartHunt, restartDock, completeRun,
       enterDockWorld, leaveDockWorld, activateBeacon,
@@ -8545,6 +9025,8 @@ errors ${window.__errors.length}${window.__errors.length?`
     dock: () => { if (!E.installed) return 'not-ready'; startDock(); },
     wave: () => spawnWave(E.waves + 1),
     kit: (id) => applyKit(id),
+    loadout: () => LOADOUT.slice(),
+    scope: () => ({ kit: WK.active && WK.active.id, ads: weapon && weapon.ads, fov: G.camera && G.camera.fov, tuning: player.tuning && player.tuning.fovAds, overlay: !!(ui.scope && ui.scope.classList.contains('on')) }),
     dockInfo: () => ({ built: DOCK.built, activated: DOCK.activated, phase: DOCK.phase, beacons: DOCK.beacons.map((b) => ({ x: b.x, z: b.z, progress: b.progress, active: b.active })), obstacles: DOCK.obstacles.length, boxes: physics.boxes.length, player: { x: player.pos.x, z: player.pos.z } }),
     huntInfo: () => ({ idx: HUNT.idx, targets: HUNT.targets.map((e) => e && { type: e.type, hp: e.hp, alive: !e.dead }) }),
     complete: () => completeRun('测试'),
